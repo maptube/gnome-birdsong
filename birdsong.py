@@ -30,14 +30,31 @@ def hamming(N):
 Plot a spectrogram using matplotlib.
 @param s is the output of np.fft.fft which contains the imaginary and real parts
 """
-def plotSpectrogram(s):
+def plotSpectrogram(s,filename):
     #todo: need to compute mag and phase here for plotting - contents of "s" param are imaginary and real parts
     grid = np.array(s) #turn the list of lists into a numpy array we can plot
-    print grid[0][0]
     x, y = np.shape(grid)
-    print "x=",x,"y=",y
+    #mag = np.array([np.linalg.norm(elem) for elem in np.nditer(grid)])
+    #mag = np.reshape(x,y)
+    mag = np.empty([x,y])
+    #x2, y2 = np.shape(mag)
+    #print "x=",x,"y=",y
+    #print "x2=",x2,"y2=",y2
+    for xi in range(0,x):
+        for yi in range(0,y):
+            mag[xi][yi]=np.linalg.norm(grid[xi][yi])
+    #print "x=",x,"y=",y
+    #x2, y2 = np.shape(mag)
+    #print "x2=",x2,"y2=",y2
+    #print grid[0][0],mag[0][0]
 
-    plt.imshow(np.transpose(grid), origin="lower", aspect="auto", cmap=cm.gist_rainbow, interpolation="none")
+    colmap = cm.Greys
+    #colmap = cm.gist_yarg
+    #colmap = cm.gist_gray
+    #colmap = cm.binary
+    #colmap=cm.gist_rainbow
+    #colmap = cm.copper
+    plt.imshow(np.transpose(mag), origin="lower", aspect="auto", cmap=colmap, interpolation="none")
     plt.colorbar()
 
     plt.xlabel("time (s)")
@@ -45,7 +62,8 @@ def plotSpectrogram(s):
     plt.xlim([0, x-1])
     plt.ylim([0, y])
 
-    plt.show()
+    #plt.show()
+    plt.savefig(filename)
     
     #xmin=0.0
     #xmax=float(len(s))
@@ -118,7 +136,7 @@ def main():
     #that's the spectrogram computed, now we need to stack spectrogram frames and learn from them
     #TODO: here!
     print "spectrogram feature frames: ",len(spectrogram)
-    plotSpectrogram(spectrogram)
+    plotSpectrogram(spectrogram,'spec_xc25119.png')
     
     #spec = np.fft.fft(data,512)
     #print len(spec)
