@@ -4,6 +4,9 @@
 #https://pypi.python.org/pypi/PySoundFile/0.8.1
 #pip install matplotlib
 #https://matplotlib.org/users/pyplot_tutorial.html
+#als lookup melfcc.m
+
+#this is useful: https://dsp.stackexchange.com/questions/32076/fft-to-spectrum-in-decibel
 
 import numpy as np
 import soundfile as sf
@@ -15,6 +18,7 @@ import matplotlib.cm as cm
 
 """
 Hamming Window: w(n)=0.54-0.46 cos (2PI*n/N), 0<=n<=N
+NOTE: apparently, numpy has np.hamming(N) function to do exactly this
 @param N number of samples to create window for
 @returns a list of Hamming window weights with N values in it
 """
@@ -48,12 +52,14 @@ def plotSpectrogram(s,filename):
     #print "x2=",x2,"y2=",y2
     #print grid[0][0],mag[0][0]
 
-    colmap = cm.Greys
+    #colmap = cm.Greys
     #colmap = cm.gist_yarg
     #colmap = cm.gist_gray
     #colmap = cm.binary
     #colmap=cm.gist_rainbow
     #colmap = cm.copper
+    #colmap=cm.gnuplot
+    colmap=cm.gnuplot2
     plt.imshow(np.transpose(mag), origin="lower", aspect="auto", cmap=colmap, interpolation="none")
     plt.colorbar()
 
@@ -71,6 +77,23 @@ def plotSpectrogram(s,filename):
     #ymax=float(len(s[0]))
     #plt.imshow(grid, extent=(xmin, xmax, ymax, ymin), interpolation='nearest', cmap=cm.gist_rainbow)
     #plt.show()
+
+###############################################################################
+
+def dbfsfft(x,fftsize):
+    """Compute spectrogram in db relative to full scale"""
+    ref=1.0
+    N = len(x)
+    wdw = hamming(N)
+    x = x * wdw
+    spec = np.fft.rfft(x,fftsize) #real part only
+    #spec = np.fft.fft(x,fftsize)
+    spec_mag = np.abs(spec)*2/np.sum(wdw) #magnitude scaling by window
+    spec_dbfs = 20 * np.log10(spec_mag/ref) #conversion to db rel full scale
+
+    #todo: return frequency bands as well? need sampling frequency for this
+    #print "len spec_dbfs=",len(spec_dbfs)
+    return spec_dbfs
 
 ###############################################################################
 
@@ -117,18 +140,21 @@ def main():
     #now go through each block in turn
     n=0
     while (n<datalen):
-        window=[0]*windowSamples
-        i=0
-        for m in range(int(n),int(min(datalen,n+windowSamples))):
-            window[i]=data[m]*ham[i]
-            i+=1
+        #window=[0]*windowSamples
+        #i=0
+        #for m in range(int(n),int(min(datalen,n+windowSamples))):
+        #    window[i]=data[m]*ham[i]
+        #    i+=1
+        window = data[n:n+windowSamples]
 
         #at the point we have window[] containing the data with the hamming weights applied
         #the next part of the analysis is the spectrogram slice
 
         #perform RMS check on data here for frames which are silent...
         
-        spec = np.fft.fft(window,fftSize)
+        #spec = np.fft.fft(window,fftSize)
+        spec = dbfsfft(window,fftSize)
+        #spec_db = spec+120 #scale dbfs to db
         spectrogram.append(spec)
             
         n=n+windowSamples-windowSampleOverlap
@@ -136,6 +162,7 @@ def main():
     #that's the spectrogram computed, now we need to stack spectrogram frames and learn from them
     #TODO: here!
     print "spectrogram feature frames: ",len(spectrogram)
+    print np.shape(spectrogram)
     plotSpectrogram(spectrogram,'spec_xc25119.png')
     
     #spec = np.fft.fft(data,512)
