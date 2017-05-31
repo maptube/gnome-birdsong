@@ -52,14 +52,14 @@ def plotSpectrogram(s,filename):
     #print "x2=",x2,"y2=",y2
     #print grid[0][0],mag[0][0]
 
-    #colmap = cm.Greys
+    colmap = cm.Greys
     #colmap = cm.gist_yarg
     #colmap = cm.gist_gray
     #colmap = cm.binary
     #colmap=cm.gist_rainbow
     #colmap = cm.copper
     #colmap=cm.gnuplot
-    colmap=cm.gnuplot2
+    #colmap=cm.gnuplot2
     plt.imshow(np.transpose(mag), origin="lower", aspect="auto", cmap=colmap, interpolation="none")
     plt.colorbar()
 
@@ -80,20 +80,35 @@ def plotSpectrogram(s,filename):
 
 ###############################################################################
 
+def plotSignal(x):
+    t=np.arange(0,len(x),1)
+    plt.plot(t,x)
+    plt.xlabel('sample')
+    plt.ylabel('x')
+    plt.title('Signal')
+    plt.grid(True)
+    plt.show()
+    
+
+###############################################################################
+
 def dbfsfft(x,fftsize):
     """Compute spectrogram in db relative to full scale"""
     ref=1.0
     N = len(x)
     wdw = hamming(N)
+    #plotSignal(wdw)
     x = x * wdw
+    plotSignal(x)
     spec = np.fft.rfft(x,fftsize) #real part only
     #spec = np.fft.fft(x,fftsize)
-    spec_mag = np.abs(spec)*2/np.sum(wdw) #magnitude scaling by window
+    spec_mag = np.abs(spec) #*2/np.sum(wdw) #magnitude scaling by window
+    print "max,min=",np.max(spec_mag),np.min(spec_mag)
     spec_dbfs = 20 * np.log10(spec_mag/ref) #conversion to db rel full scale
 
     #todo: return frequency bands as well? need sampling frequency for this
     #print "len spec_dbfs=",len(spec_dbfs)
-    return spec_dbfs
+    return spec_mag
 
 ###############################################################################
 
