@@ -40,27 +40,27 @@ def plotSpectrogram(s,filename):
     x, y = np.shape(grid)
     #mag = np.array([np.linalg.norm(elem) for elem in np.nditer(grid)])
     #mag = np.reshape(x,y)
-    mag = np.empty([x,y])
+    #mag = np.empty([x,y])
     #x2, y2 = np.shape(mag)
     #print "x=",x,"y=",y
     #print "x2=",x2,"y2=",y2
-    for xi in range(0,x):
-        for yi in range(0,y):
-            mag[xi][yi]=np.linalg.norm(grid[xi][yi])
+    #for xi in range(0,x):
+    #    for yi in range(0,y):
+    #        mag[xi][yi]=np.linalg.norm(grid[xi][yi])
     #print "x=",x,"y=",y
     #x2, y2 = np.shape(mag)
     #print "x2=",x2,"y2=",y2
     #print grid[0][0],mag[0][0]
 
-    colmap = cm.Greys
+    #colmap = cm.Greys
     #colmap = cm.gist_yarg
     #colmap = cm.gist_gray
     #colmap = cm.binary
     #colmap=cm.gist_rainbow
     #colmap = cm.copper
     #colmap=cm.gnuplot
-    #colmap=cm.gnuplot2
-    plt.imshow(np.transpose(mag), origin="lower", aspect="auto", cmap=colmap, interpolation="none")
+    colmap=cm.gnuplot2
+    plt.imshow(np.transpose(grid), origin="lower", aspect="auto", cmap=colmap, interpolation="none")
     plt.colorbar()
 
     plt.xlabel("time (s)")
@@ -80,6 +80,7 @@ def plotSpectrogram(s,filename):
 
 ###############################################################################
 
+"""Plot a simple time domain signal"""
 def plotSignal(x):
     t=np.arange(0,len(x),1)
     plt.plot(t,x)
@@ -92,35 +93,47 @@ def plotSignal(x):
 
 ###############################################################################
 
-def dbfsfft(x,fftsize):
+def dbfsfft(x,fftsize,sampleRate):
     """Compute spectrogram in db relative to full scale"""
     ref=1.0
     N = len(x)
     wdw = hamming(N)
     #plotSignal(wdw)
+    xrms=rms(x)
     x = x * wdw
-    plotSignal(x)
-    spec = np.fft.rfft(x,fftsize) #real part only
-    #spec = np.fft.fft(x,fftsize)
-    spec_mag = np.abs(spec) #*2/np.sum(wdw) #magnitude scaling by window
-    print "max,min=",np.max(spec_mag),np.min(spec_mag)
+    #plotSignal(x)
+    spec = np.fft.rfft(x,fftsize) #real part only fft.fft would do the img mirror
+    freq = np.arange((N / 2) + 1) / (float(N) / sampleRate) #need frequency bins for plotting
+    #find the magnitude of the complex numbers in spec
+    spec_mag = np.abs(spec)*2/np.sum(wdw) #magnitude scaling by window: np.abs(s) is amplitude spectrum, np.abs(s)**2 is power
     spec_dbfs = 20 * np.log10(spec_mag/ref) #conversion to db rel full scale
+    print "max,min=",np.max(spec_dbfs),np.min(spec_dbfs),np.max(spec_mag),np.min(spec_mag),xrms,np.sum(wdw)
 
     #todo: return frequency bands as well? need sampling frequency for this
     #print "len spec_dbfs=",len(spec_dbfs)
-    return spec_mag
+    return freq, spec_dbfs
 
 ###############################################################################
 
-def main():
-    #matplotlib test
-    #grid=np.array([[1, 2, 3], [4, 5, 6], [7,8,9]], np.int32)
-    #x=np.array([0,1,2])
-    #y=np.array([0,1,2])
-    #plt.imshow(grid, extent=(x.min(), x.max(), y.max(), y.min()), interpolation='nearest', cmap=cm.gist_rainbow)
-    #plt.show()
+def rms(x):
+    """Compute RMS value using time domain signal in x"""
+    rms = np.sqrt(np.mean([x[i]**2 for i in range(len(x))]))
+    return rms
 
-    
+###############################################################################
+
+def spectrogramMedianFilter(spec):
+    """
+    Normalise spectrogram power for each frequency band by subtracting the median from each band in turn.
+    Any values below zero are set to zero.
+    """
+    #TODO:
+    return spec
+
+###############################################################################
+
+
+def main():
     #define constants which determine how the learning works
     #assume sample rate of 44100
     sampleRate = 44100 #this should come from the sample itself really
@@ -138,7 +151,7 @@ def main():
     print "fftSize=",fftSize
     ###
     
-    ham = hamming(windowSamples) # define a Hamming window covering the sample window
+    #ham = hamming(windowSamples) # define a Hamming window covering the sample window
 
     ###
 
@@ -147,6 +160,7 @@ def main():
     datalen = len(data)
     print "data length=",datalen," sample rate=",datasamplerate
     #todo: check datasamplerate==sampleRate?
+    #plotSignal(data) #plot original time domain signal
 
     #spectrogram computation on entire waveform file
 
@@ -160,15 +174,17 @@ def main():
         #for m in range(int(n),int(min(datalen,n+windowSamples))):
         #    window[i]=data[m]*ham[i]
         #    i+=1
-        window = data[n:n+windowSamples]
+        window = data[n:n+windowSamples] #if this runs off the end then we pad with zeroes
+        N = len(window)
+        if N<windowSamples:
+            window = np.pad(window, pad_width=(0, windowSamples-N), mode='constant')
+        #plotSignal(window)
 
-        #at the point we have window[] containing the data with the hamming weights applied
-        #the next part of the analysis is the spectrogram slice
 
         #perform RMS check on data here for frames which are silent...
         
-        #spec = np.fft.fft(window,fftSize)
-        spec = dbfsfft(window,fftSize)
+        #compute spectrogram in db relative to full scale
+        freq, spec = dbfsfft(window,fftSize,sampleRate)
         #spec_db = spec+120 #scale dbfs to db
         spectrogram.append(spec)
             
