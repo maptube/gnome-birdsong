@@ -34,24 +34,11 @@ def hamming(N):
 Plot a spectrogram using matplotlib.
 @param s is the output of np.fft.fft which contains the imaginary and real parts
 """
-def plotSpectrogram(s,filename):
+def plotSpectrogram(s,freq,filename):
     #todo: need to compute mag and phase here for plotting - contents of "s" param are imaginary and real parts
     grid = np.array(s) #turn the list of lists into a numpy array we can plot
     x, y = np.shape(grid)
-    #mag = np.array([np.linalg.norm(elem) for elem in np.nditer(grid)])
-    #mag = np.reshape(x,y)
-    #mag = np.empty([x,y])
-    #x2, y2 = np.shape(mag)
-    #print "x=",x,"y=",y
-    #print "x2=",x2,"y2=",y2
-    #for xi in range(0,x):
-    #    for yi in range(0,y):
-    #        mag[xi][yi]=np.linalg.norm(grid[xi][yi])
-    #print "x=",x,"y=",y
-    #x2, y2 = np.shape(mag)
-    #print "x2=",x2,"y2=",y2
-    #print grid[0][0],mag[0][0]
-
+    
     #colmap = cm.Greys
     #colmap = cm.gist_yarg
     #colmap = cm.gist_gray
@@ -64,9 +51,15 @@ def plotSpectrogram(s,filename):
     plt.colorbar()
 
     plt.xlabel("time (s)")
-    plt.ylabel("frequency (hz)")
+    plt.ylabel("frequency (KHz)")
     plt.xlim([0, x-1])
     plt.ylim([0, y])
+    plt.yticks(
+        [0,y/4,y/2,3*y/4,y],
+        [freq[0]/1000.0,freq[y/4]/1000.0,freq[y/2]/1000.0,freq[3*y/4]/1000.0,freq[y-1]/1000.0]
+    )
+    #plt.yticks(np.arange(0,y,y/4),np.arange(freq[0]/1000.0,freq[y-1]/1000.0,(freq[y-1]-freq[0])/(4*1000)))
+    plt.tight_layout() #it cuts the y label off otherwise
 
     #plt.show()
     plt.savefig(filename)
@@ -103,7 +96,7 @@ def dbfsfft(x,fftsize,sampleRate):
     x = x * wdw
     #plotSignal(x)
     spec = np.fft.rfft(x,fftsize) #real part only fft.fft would do the img mirror
-    freq = np.arange((N / 2) + 1) / (float(N) / sampleRate) #need frequency bins for plotting
+    freq = np.arange((fftsize / 2) + 1) / (float(fftsize) / sampleRate) #need frequency bins for plotting
     #find the magnitude of the complex numbers in spec
     spec_mag = np.abs(spec)*2/np.sum(wdw) #magnitude scaling by window: np.abs(s) is amplitude spectrum, np.abs(s)**2 is power
     spec_dbfs = 20 * np.log10(spec_mag/ref) #conversion to db rel full scale
@@ -128,6 +121,31 @@ def spectrogramMedianFilter(spec):
     Any values below zero are set to zero.
     """
     #TODO:
+    #x-axis is a list of the fft window (y-axis), we need min and max along x, which is along the frames
+    xs, ys = np.shape(spec)
+    #minmax = []
+    #smin1=[]
+    #for y in range(0,ys):
+    #    smin1.append(1000000)
+    #    for x in range(0,xs):
+    #        if spec[x][y]<smin1[y]:
+    #            smin1[y]=spec[x][y]
+    #print "smin1=",smin1
+    #
+    #smin2=1000000
+    #smin2=np.amin(spec,axis=0)
+    #print "smin2=",smin2
+
+    #min and max across frames (x-axis)
+    smin = np.amin(spec,axis=0)
+    smax = np.amax(spec,axis=0)
+    smedian = (smin+smax)/2.0
+    #now take the median value away from the data across each frequency band
+    for y in range(0,ys):
+        for x in range(0,xs):
+            if (spec[x][y]<smedian[y]):
+                spec[x][y]=smedian[y]
+    
     return spec
 
 ###############################################################################
@@ -194,7 +212,9 @@ def main():
     #TODO: here!
     print "spectrogram feature frames: ",len(spectrogram)
     print np.shape(spectrogram)
-    plotSpectrogram(spectrogram,'spec_xc25119.png')
+    plotSpectrogram(spectrogram,freq,'spec_xc25119.png')
+    spectrogramF = spectrogramMedianFilter(spectrogram)
+    plotSpectrogram(spectrogramF,freq,'spec_med_xc25119.png')
     
     #spec = np.fft.fft(data,512)
     #print len(spec)
