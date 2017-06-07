@@ -16,6 +16,7 @@ import soundfile as sf
 from math import cos, pi, floor
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import os
 
 from spectrogram import Spectrogram
 
@@ -330,17 +331,31 @@ def main():
     print "fftSize=",fftSize
     #print "numMelBands=",numMelBands
     ###
+
+    #housekeeping - where everything is and where it goes
+    inFileTrainManifest = "training-data/xccoverbl/xcmeta.csv" #manifest file for all training data sound files
+    inDirData = "training-data/xccoverbl/xccoverbl_2014_269" #location of the wave files
+    outDirSpectrogram = "spectrograms" #where spectrogram plots can get put so they're all together - basically debug/testing
     
-    #ham = hamming(windowSamples) # define a Hamming window covering the sample window
 
     ###
 
-    #this is the data load and process
-##    data, datasamplerate = sf.read('training-data/xccoverbl/xccoverbl_2014_269/xc25119.flac')
-##    datalen = len(data)
-##    print "data length=",datalen," sample rate=",datasamplerate
-    #todo: check datasamplerate==sampleRate?
-    #plotSignal(data) #plot original time domain signal
+    #go through the training manifest and generate spectrograms for all the files
+    #id	gen	sp	en	rec	cnt	lat	lng	type	lic
+    #132608	Acanthis	flammea	Common Redpoll	Jarek Matusiak	Poland	50.7932	15.4995	female, male, song	http://creativecommons.org/licenses/by-nc-sa/3.0/
+    #Results in [ id="132608", gen="Acanthis", sp="flammea", en="Common Redpoll", rec="Jarek Matusiak",
+    #                   cnt="Poland", lat="50.7932", lng="15.4995", type="female, male, song",
+    #                   lic="http://creativecommons.org/licenses/by-nc-sa/3.0/" ]
+    #todo: need to make a set out of the common names so I can give them an id
+    with open(inFileTrainManifest) as f:
+        next(f) #skip header line
+        for line in f:
+            fields = line.split('\t')
+            fileid = fields[0]
+            commonName = fields[3]
+            filename = os.path.join(inDirData,fileid+".flac")
+            print commonName," ",filename
+            #todo: pick up file, make the spectrogram from it and save spec, plus serialise the data for training
 
     #spectrogram computation on entire waveform file
 
