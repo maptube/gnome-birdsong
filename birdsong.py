@@ -10,6 +10,8 @@
 
 #this is VERY good on MFCC: http://www.practicalcryptography.com/miscellaneous/machine-learning/guide-mel-frequency-cepstral-coefficients-mfccs/
 
+#PCA Whitening: http://ufldl.stanford.edu/tutorial/unsupervised/PCAWhitening/
+
 import numpy as np
 #from collections import deque
 import soundfile as sf
@@ -17,6 +19,9 @@ from math import cos, pi, floor
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import os
+import sys
+#import cPickle
+import pickle
 
 from spectrogram import Spectrogram
 
@@ -312,6 +317,25 @@ def rms(x):
 
 ###############################################################################
 
+def loadSpeciesClassification():
+    """
+    Read the 'birdspecies.csv' file (hardcoded - BAD!!!) which contains the lookup
+    between the common species name e.g. "Sedge Warbler" and a species id which I've
+    defined e.g. 74
+    returns a dictionary lookup between name and species id
+    """
+    birdNameToId = {}
+    with open('birdspecies.csv') as f:
+        for line in f:
+            fields = line.split(',')
+            birdId = fields[0]
+            commonName = fields[1].rstrip() #they have \n on the end
+            birdNameToId[commonName]=birdId
+    return birdNameToId
+
+
+###############################################################################
+
 def main():
     #define constants which determine how the learning works
     #assume sample rate of 44100
@@ -336,7 +360,9 @@ def main():
     inFileTrainManifest = "training-data/xccoverbl/xcmeta.csv" #manifest file for all training data sound files
     inDirData = "training-data/xccoverbl/xccoverbl_2014_269" #location of the wave files
     outDirSpectrogram = "spectrograms" #where spectrogram plots can get put so they're all together - basically debug/testing
-    
+    outDirTrainingVectors = "training-vectors" #location where data for training is stored
+
+    birdNameToId = loadSpeciesClassification()
 
     ###
 
@@ -347,87 +373,60 @@ def main():
     #                   cnt="Poland", lat="50.7932", lng="15.4995", type="female, male, song",
     #                   lic="http://creativecommons.org/licenses/by-nc-sa/3.0/" ]
     #todo: need to make a set out of the common names so I can give them an id
+    genSpec = Spectrogram()
     with open(inFileTrainManifest) as f:
         next(f) #skip header line
+        count=0
         for line in f:
             fields = line.split('\t')
             fileid = fields[0]
             commonName = fields[3]
-            filename = os.path.join(inDirData,fileid+".flac")
-            print commonName," ",filename
-            #todo: pick up file, make the spectrogram from it and save spec, plus serialise the data for training
-
-    #spectrogram computation on entire waveform file
-
-    spectrogramDBFS = [] #this is the db relative full scale power spectra
-    spectrogramMag = [] #and this is the raw linear power spectra
-    
-    #now go through each block in turn
-##    n=0
-##    while (n<datalen):
-##        #window=[0]*windowSamples
-##        #i=0
-##        #for m in range(int(n),int(min(datalen,n+windowSamples))):
-##        #    window[i]=data[m]*ham[i]
-##        #    i+=1
-##        window = data[n:n+windowSamples] #if this runs off the end then we pad with zeroes
-##        N = len(window)
-##        if N<windowSamples:
-##            window = np.pad(window, pad_width=(0, windowSamples-N), mode='constant')
-##        #plotSignal(window)
-##
-##
-##        #perform RMS check on data here for frames which are silent...
-##        
-##        #compute spectrogram in db relative to full scale
-##        freq, spec, specmag = dbfsfft(window,fftSize,sampleRate)
-##        #spec_db = spec+120 #scale dbfs to db
-##        spectrogramDBFS.append(spec) #this is the log db relative full scale version (normal one plotted)
-##        spectrogramMag.append(specmag) #this is the raw magnitude spectrum directly off the fft
-##            
-##        n=n+windowSamples-windowSampleOverlap
-
-#new bit
-
-    genSpec = Spectrogram()
-    genSpec.load('training-data/xccoverbl/xccoverbl_2014_269/xc25119.flac')
-    spectrogramDBFS = genSpec.spectrogramDBFS
-    spectrogramMag = genSpec.spectrogramMag
-    freq=genSpec.freq #these are the frequency bands that go with the above
-    
-
-#end of new bit
-    
-
-    #that's the spectrogram computed, now we need to stack spectrogram frames and learn from them
-    #TODO: here!
-    print "spectrogram feature frames: ",len(spectrogramDBFS)
-    print "spectrogram=",np.shape(spectrogramDBFS)
-    #At this point we have a number of possibilities. There is the spectrumDBFS, which is the DB relative
-    #full scale log magnitude power spectrum, or the raw linear magnitude power spectrum which is just from
-    #the raw fft data directly (magnitude of the im, re vector). Either of these can be median filtered
-    #and then converted to a mel scale.
-    genSpec.plotSpectrogram(spectrogramDBFS,freq,'spec_dbfs_xc25119.png')
-    genSpec.plotSpectrogram(spectrogramMag,freq,'spec_mag_xc25119.png')
-    spectrogramDBFS_Filt = genSpec.spectrogramMedianFilter(spectrogramDBFS)
-    spectrogramMag_Filt = genSpec.spectrogramMedianFilter(spectrogramMag)
-    genSpec.plotSpectrogram(spectrogramDBFS_Filt,freq,'spec_dbfs_med_xc25119.png')
-    genSpec.plotSpectrogram(spectrogramMag_Filt,freq,'spec_mag_med_xc25119.png')
-    #now you can do a mel frequency one off of either spectrogram[Mag|DBFS] or spectrogram[Mag|DBFS]_Filt (median filtered)
-    melfreq, spectrogramMels = genSpec.melSpectrum(spectrogramMag_Filt,freq)
-    print "mels=",np.shape(spectrogramMels)
-    genSpec.plotSpectrogram(spectrogramMels,melfreq,"spec_mel_mag_med_xc25119.png")
-    spectrogramMelsLog = genSpec.logSpectrogram(spectrogramMels) #this applies a log function to the magnitudes
-    genSpec.plotSpectrogram(spectrogramMelsLog,melfreq,"spec_mel_log_mag_med_xc25119.png")
-    #TODO: need velocity and acceleration features
-    #and rms normalisation
-    #and silence removal
-    
-    #spec = np.fft.fft(data,512)
-    #print len(spec)
-    #rms = [np.sqrt(np.mean(block**2)) for block in
-    #   sf.blocks('training-data/xccoverbl/xccoverbl_2014_269/xc25119.flac', blocksize=1024, overlap=512)]
-    #print rms
+            speciesid = birdNameToId[commonName]
+            filename = os.path.join(inDirData,'xc'+fileid+'.flac')
+            print count," ",commonName," ",speciesid," ",filename
+            sys.stdout.flush() #otherwise it very annoyingly doesn't write anything until after the loop is finished!
+            #pick up audio file, make the spectrogram from it and save spec, plus serialise the data for training
+            genSpec.load(filename)
+            #spectrogram computation on entire waveform file
+            spectrogramDBFS = genSpec.spectrogramDBFS #this is the db relative full scale power spectra
+            spectrogramMag = genSpec.spectrogramMag #and this is the raw linear power spectra
+            freq=genSpec.freq #these are the frequency bands that go with the above
+            #now plot the data and save the training frames
+            print "spectrogram feature frames: ",len(spectrogramDBFS)
+            print "spectrogram=",np.shape(spectrogramDBFS)
+            #At this point we have a number of possibilities. There is the spectrumDBFS, which is the DB relative
+            #full scale log magnitude power spectrum, or the raw linear magnitude power spectrum which is just from
+            #the raw fft data directly (magnitude of the im, re vector). Either of these can be median filtered
+            #and then converted to a mel scale.
+            genSpec.plotSpectrogram(spectrogramDBFS,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_dbfs.png'))
+            genSpec.plotSpectrogram(spectrogramMag,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mag.png'))
+            spectrogramDBFS_Filt = genSpec.spectrogramMedianFilter(spectrogramDBFS)
+            spectrogramMag_Filt = genSpec.spectrogramMedianFilter(spectrogramMag)
+            genSpec.plotSpectrogram(spectrogramDBFS_Filt,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_dbfs_med.png'))
+            genSpec.plotSpectrogram(spectrogramMag_Filt,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mag_med.png'))
+            #now you can do a mel frequency one off of either spectrogram[Mag|DBFS] or spectrogram[Mag|DBFS]_Filt (median filtered)
+            #melfreq, spectrogramMels = genSpec.melSpectrum(spectrogramMag_Filt,freq)
+            #print "mels=",np.shape(spectrogramMels)
+            #genSpec.plotSpectrogram(spectrogramMels,melfreq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mel_mag_med.png'))
+            #spectrogramMelsLog = genSpec.logSpectrogram(spectrogramMels) #this applies a log function to the magnitudes
+            #genSpec.plotSpectrogram(spectrogramMelsLog,melfreq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mel_log_mag_med.png'))
+            #and rms normalisation
+            #and silence removal
+            #TODO: need to serialise the data from the spectrogram here so we can learn from it
+            
+            #Save vector data needed for learning
+            #TODO: NEED the training class in the filename here
+            output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_dbfs.pkl'), 'wb')
+            pickle.dump(spectrogramDBFS, output)
+            output.close()
+            output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_mag.pkl'), 'wb')
+            pickle.dump(spectrogramMag, output)
+            output.close()
+            output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_freq.pkl'), 'wb')
+            pickle.dump(freq, output)
+            output.close()
+            
+            count=count+1
 
 
 
