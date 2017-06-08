@@ -32,6 +32,11 @@ class Spectrogram:
 ################################################################################
 
     def load(self,audiofilename):
+        #re-initialise data
+        self.spectrogramDBFS = []
+        self.spectrogramMag = []
+        self.freq=[] #frequency bands to go with above (Hz)
+        #load audio and process
         data, datasamplerate = sf.read(audiofilename)
         datalen = len(data)
         print "data length=",datalen," sample rate=",datasamplerate
