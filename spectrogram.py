@@ -18,13 +18,13 @@ class Spectrogram:
         self.fftSize = 512 #number of frequency bins in the ftt spectrogram
         self.numMelBands = 16 #number of mel frequency bands for the mel spectrogram
         #todo: you might want to print this lot out at the start of each run?
-        print "sampleRate=",self.sampleRate
-        print "windowSeconds=",self.windowSeconds
-        print "windowSamples=",self.windowSamples
-        print "windowOverlap=",self.windowOverlap
-        print "windowSampleOverlap=",self.windowSampleOverlap
-        print "fftSize=",self.fftSize
-        print "numMelBands=",self.numMelBands
+        print("sampleRate=",self.sampleRate)
+        print("windowSeconds=",self.windowSeconds)
+        print("windowSamples=",self.windowSamples)
+        print("windowOverlap=",self.windowOverlap)
+        print("windowSampleOverlap=",self.windowSampleOverlap)
+        print("fftSize=",self.fftSize)
+        print("numMelBands=",self.numMelBands)
         self.spectrogramDBFS = []
         self.spectrogramMag = []
         self.freq=[] #frequency bands to go with above (Hz)
@@ -39,7 +39,7 @@ class Spectrogram:
         #load audio and process
         data, datasamplerate = sf.read(audiofilename)
         datalen = len(data)
-        print "data length=",datalen," sample rate=",datasamplerate
+        print("data length=",datalen," sample rate=",datasamplerate)
 
         #now go through each block in turn
         n=0
