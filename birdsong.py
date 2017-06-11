@@ -12,6 +12,8 @@
 
 #PCA Whitening: http://ufldl.stanford.edu/tutorial/unsupervised/PCAWhitening/
 
+#https://pythonprogramming.net/tensorflow-introduction-machine-learning-tutorial/
+
 import numpy as np
 #from collections import deque
 import soundfile as sf
@@ -117,6 +119,29 @@ def buildXCTrainingVectors(inDirData,outDirSpectrogram,outDirTrainingVectors):
 
 ###############################################################################
 
+def loadXCTrainingVectors(dirTrainingVectors):
+    #todo:
+    #filenames are 0_xc41428_[dbfs|mag|freq].pkl
+    #The zero is the species classification
+    #The xc... is the xeno canto identifier
+    #dbfs is a bd relative full scale spectrogram, while mag is the magnitude (linear)
+    #freq is the list of frequencies in the spectrogram
+    #returns some sort of structure containing spectrogram segments and target species
+    for filename in os.listdir(dirTrainingVectors):
+        fields = filename.split('_')
+        target = fields[0]
+        xcid = fields[1]
+        obtype = fields[2]
+        if obtype=='dbfs':
+            print("Training vector file: ",filename)
+            pickle.load(os.path.join(dirTrainingVectors,filename)) #it's a list of spectrogram frames
+            #todo: now we need to create vectors from the data in the spectrogram
+            #do a 3 way rms cluster
+
+    return ""
+
+###############################################################################
+
 def loadSpeciesClassification():
     """
     Read the 'birdspecies.csv' file (hardcoded - BAD!!!) which contains the lookup
@@ -165,17 +190,43 @@ def main():
 
     ###
 
-    #build the training vectors from the Xeno Canto dataset
+    #build the training vectors from the Xeno Canto dataset into files that we can load easily
     #buildXCTrainingVectors(inDirData,outDirSpectrogram,outDirTrainingVectors)
 
+    #trainingset = loadXCTrainingVectors(outDirTrainingVectors)
+
     #learning algorithm...
-    hello = tf.constant('Hello, TensorFlow!')
-    sess = tf.Session()
-    print(sess.run(hello))
-    a=tf.constant(10)
-    b=tf.constant(32)
-    print(sess.run(a+b))
-    sess.close()
+    #hello = tf.constant('Hello, TensorFlow!')
+    #sess = tf.Session()
+    #print(sess.run(hello))
+    #a=tf.constant(10)
+    #b=tf.constant(32)
+    #print(sess.run(a+b))
+    #sess.close()
+
+    #test1
+    #x=tf.constant([1,1,2,2,3,4,5,5,5,6,6,7,7,7,7,7,8,9,10],name="points")
+    #y=tf.constant([1,1,2,2,3,4,5,5,5,6,6,7,7,7,7,7,8,9,10],name="points2")
+    #dx = tf.expand_dims(x)
+    W = tf.Variable([0.3],tf.float32)
+    b = tf.Variable([-0.3],tf.float32)
+    x = tf.placeholder(tf.float32)
+    linear_model = W*x+b
+    y = tf.placeholder(tf.float32)
+    squared_deltas = tf.square(linear_model-y)
+    loss = tf.reduce_sum(squared_deltas)
+    init = tf.global_variables_initializer()
+    with tf.Session() as session:
+        #centroids=tf.Variable([1,5,7],name="centroids")
+        #dist = tf.subtract(x,centroids)
+        #distNode=tf.add(x,y)
+        #print(session.run(distNode))
+        session.run(init)
+        #print(session.run(linear_model,{x:[1,2,3,4]}))
+        print(session.run(squared_deltas,{x:[1,2,3,4], y:[0,-1,-2,-3]}))
+        #result = session.run(loss,{x:[1,2,3,4]},{y:[0,-1,-2,-3]})
+        #dir(result)
+        
 
     #some testing
     #need RNN cell
@@ -192,21 +243,21 @@ def main():
     #)
 
     #https://www.tensorflow.org/get_started/tflearn
-    feature_columns = [tf.contrib.layers.real_valued_column("",dimension=4)]
-    classifier = tf.contrib.learn.DNNClassifier(
-        feature_columns=feature_columns,
-        hidden_units=[10,20,10],
-        n_classes=3,
-        model_dir="tmp-dnnmodel")
+    #feature_columns = [tf.contrib.layers.real_valued_column("",dimension=4)]
+    #classifier = tf.contrib.learn.DNNClassifier(
+    #    feature_columns=feature_columns,
+    #    hidden_units=[10,20,10],
+    #    n_classes=3,
+    #    model_dir="tmp-dnnmodel")
     
 
-    def get_train_inputs():
-        x=tf.constant(training_set.data)
-        y=tf.constant(training_set.target)
-        return x, y
+    #def get_train_inputs():
+    #    x=tf.constant(training_set.data)
+    #    y=tf.constant(training_set.target)
+    #    return x, y
     
 
-    classifier.fit(input_fn=get_train_inputs, steps=2000)
+    #classifier.fit(input_fn=get_train_inputs, steps=2000)
 
 
 
