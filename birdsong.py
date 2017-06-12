@@ -205,28 +205,55 @@ def main():
     #sess.close()
 
     #test1
-    #x=tf.constant([1,1,2,2,3,4,5,5,5,6,6,7,7,7,7,7,8,9,10],name="points")
+    numK=3 #number of clusters
+    x=tf.constant([1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0],name="x-points")
     #y=tf.constant([1,1,2,2,3,4,5,5,5,6,6,7,7,7,7,7,8,9,10],name="points2")
     #dx = tf.expand_dims(x)
-    W = tf.Variable([0.3],tf.float32)
-    b = tf.Variable([-0.3],tf.float32)
-    x = tf.placeholder(tf.float32)
-    linear_model = W*x+b
-    y = tf.placeholder(tf.float32)
-    squared_deltas = tf.square(linear_model-y)
-    loss = tf.reduce_sum(squared_deltas)
+    c=tf.placeholder(tf.float32,name="c-centroids")
+    c_new=tf.placeholder(tf.float32,name="new-centroids")
+    #W = tf.Variable([0.3],tf.float32)
+    #b = tf.Variable([-0.3],tf.float32)
+    #x = tf.placeholder(tf.float32)
+    #linear_model = W*x+b
+    #y = tf.placeholder(tf.float32)
+    #squared_deltas = tf.square(linear_model-y)
+    #loss = tf.reduce_sum(squared_deltas)
+    #
+    #deltas = tf.squared_difference(x,tf.transpose(c))
+    expanded_vectors = tf.expand_dims(x, 0)
+    #debug_expanded_vectors = tf.Print(expanded_vectors,[tf.shape(expanded_vectors)],summarize=100,message="This is me: ")
+    expanded_centroids = tf.expand_dims(c, 1)
+    #debug_expanded_centroids = tf.Print(expanded_centroids,[tf.shape(expanded_centroids)],summarize=100,message="This is me: ")
+    deltas = tf.subtract(expanded_vectors, expanded_centroids)
+    #debug_deltas = tf.Print(deltas,[tf.shape(deltas)],summarize=100,message="debug_deltas: ")
+    distances = tf.square(deltas)
+    nearest_indices = tf.argmin(distances, 0)
+    #debug_mins = tf.Print(mins,[tf.shape(mins)],summarize=100,message="debug_mins: ")
+    ##
+    inearest_indices = tf.to_int32(nearest_indices)
+    partitions = tf.dynamic_partition(x,inearest_indices,numK)
+    #new_centroids = tf.concat([tf.expand_dims(tf.reduce_mean(partition,0),0) for partition in partitions],0)
+    new_centroids = tf.reshape([tf.reduce_mean(partition,0) for partition in partitions],(3,))
+    ##
+    compute_change = tf.reduce_mean(tf.square(tf.subtract(c,c_new)))
     init = tf.global_variables_initializer()
     with tf.Session() as session:
+        #todo: you basically need init, then a loop where you compute new centroids, compute the change
+        #and loop until you get bored or the change is small
+        
         #centroids=tf.Variable([1,5,7],name="centroids")
         #dist = tf.subtract(x,centroids)
         #distNode=tf.add(x,y)
         #print(session.run(distNode))
         session.run(init)
         #print(session.run(linear_model,{x:[1,2,3,4]}))
-        print(session.run(squared_deltas,{x:[1,2,3,4], y:[0,-1,-2,-3]}))
+        #print(session.run(squared_deltas,{x:[1,2,3,4], y:[0,-1,-2,-3]}))
         #result = session.run(loss,{x:[1,2,3,4]},{y:[0,-1,-2,-3]})
         #dir(result)
-        
+        #print(session.run(nearest_indices,{c:[2,4,7]}))
+        #print(session.run(partitions,{c:[2,4,7]}))
+        result_1 = session.run(new_centroids,{c:[2,4,7]})
+        print(session.run(compute_change,{c:[2,4,7],c_new:[3,4,7]}))
 
     #some testing
     #need RNN cell
