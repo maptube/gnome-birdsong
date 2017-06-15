@@ -122,7 +122,8 @@ class KMeans1D:
         g_compute_change = self.graph_compute_change(c, c_new)
 
         centroids = self.chooseRandomCentroids(self._numK)  # picks starting centroids
-        print("starting centroids: ",centroids)
+        #print("starting centroids: ",centroids)
+        #print("x count: ",len(self._data))
         init = tf.global_variables_initializer()
         with tf.Session() as session:
             writer = tf.summary.FileWriter("output", session.graph)
@@ -133,7 +134,7 @@ class KMeans1D:
                 # result_1 contains the new centroids, we now need to compare the difference to see if the clusters are stable
                 delta = session.run(g_compute_change, {c: centroids, c_new: result_1})
                 centroids = result_1
-                print("delta:", delta, " c:", centroids)
+                #print("delta:", delta, " c:", centroids)
             writer.close()
 
         return centroids

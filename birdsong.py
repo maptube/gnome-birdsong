@@ -17,7 +17,7 @@
 import numpy as np
 #from collections import deque
 import soundfile as sf
-from math import cos, pi, floor
+from math import cos, pi, floor, sqrt
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import os
@@ -128,17 +128,36 @@ def loadXCTrainingVectors(dirTrainingVectors):
     #dbfs is a bd relative full scale spectrogram, while mag is the magnitude (linear)
     #freq is the list of frequencies in the spectrogram
     #returns some sort of structure containing spectrogram segments and target species
+    km = KMeans1D()
+    km._numK = 3
     for filename in os.listdir(dirTrainingVectors):
         fields = filename.split('_')
         target = fields[0]
         xcid = fields[1]
-        obtype = fields[2]
-        if obtype=='dbfs':
-            print("Training vector file: ",filename)
-            pickle.load(os.path.join(dirTrainingVectors,filename)) #it's a list of spectrogram frames
-            #todo: now we need to create vectors from the data in the spectrogram
-            #do a 3 way rms cluster
-
+        obtype = fields[2] # remember that this contains the suffix
+        #print("filename: ", filename, target, xcid, obtype)
+        if obtype=='mag.pkl':
+            #print("Training vector file: ",filename)
+            #print("full name: ",os.path.join(dirTrainingVectors,filename))
+            with open(os.path.join(dirTrainingVectors,filename),"rb") as f:
+                #NOTE: the latin1 encoding is due to using Python 2 to save the data and Python 3 to load it
+                spec = pickle.load(f,encoding="latin1") #it's a list of spectrogram frames
+                #todo: now we need to create vectors from the data in the spectrogram
+                #do a 3 way rms cluster
+                rms = []
+                for spec_frame in spec:
+                    #calculate power for the spectral frame TODO: what about negative dbs?
+                    pwr = sqrt(np.sum(np.square(spec_frame)))
+                    rms.append(pwr)
+                km.setData(rms)
+                cluster = km.cluster()
+                #now go back and see how many of the frames are over the noise threshold we just calculated
+                noiseThreshold=(cluster[2]+cluster[1])/2.0
+                count=0
+                for p in rms:
+                    if p>noiseThreshold:
+                        count = count+1
+                print(filename," power cluster: ",cluster," data frames: ",count,len(rms))
     return ""
 
 ###############################################################################
@@ -194,7 +213,7 @@ def main():
     #build the training vectors from the Xeno Canto dataset into files that we can load easily
     #buildXCTrainingVectors(inDirData,outDirSpectrogram,outDirTrainingVectors)
 
-    #trainingset = loadXCTrainingVectors(outDirTrainingVectors)
+    trainingset = loadXCTrainingVectors(outDirTrainingVectors)
 
     #learning algorithm...
     #hello = tf.constant('Hello, TensorFlow!')
@@ -253,10 +272,10 @@ def main():
     #    writer.close()
 
     #kmeans class test
-    km = KMeans1D()
-    km._numK = 3
-    km.setData([1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0])
-    km.cluster()
+    #km = KMeans1D()
+    #km._numK = 3
+    #km.setData([1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0])
+    #km.cluster()
 
 
 
