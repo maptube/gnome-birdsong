@@ -2,6 +2,7 @@
 
 #k-means clustering using tensorflow.
 #1 dimensional
+#todo: the delta value in the convergence loop is arbitrary, this need to come from the data somehow?
 #http://learningtensorflow.com/lesson6/
 #https://esciencegroup.com/2016/01/05/an-encounter-with-googles-tensorflow/
 
@@ -129,7 +130,8 @@ class KMeans1D:
             writer = tf.summary.FileWriter("output", session.graph)
             session.run(init)
             delta = sys.float_info.max
-            while delta > 0.01:
+#todo: need to come up with a better value for delta
+            while delta > 0.00001:
                 result_1 = session.run(g_compute_new_centroids, {c: centroids})
                 # result_1 contains the new centroids, we now need to compare the difference to see if the clusters are stable
                 delta = session.run(g_compute_change, {c: centroids, c_new: result_1})

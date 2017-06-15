@@ -45,7 +45,7 @@ def plotSignal(x):
 
 ###############################################################################
 
-def rms(x):
+def calcRMS(x):
     """Compute RMS value using time domain signal in x"""
     rms = np.sqrt(np.mean([x[i]**2 for i in range(len(x))]))
     return rms
@@ -147,7 +147,9 @@ def loadXCTrainingVectors(dirTrainingVectors):
                 rms = []
                 for spec_frame in spec:
                     #calculate power for the spectral frame TODO: what about negative dbs?
-                    pwr = sqrt(np.sum(np.square(spec_frame)))
+                    #pwr = sqrt(np.mean(np.square(spec_frame)))
+                    #pwr2 = calcRMS(spec_frame) # you can use this function too: pwr==pwr2
+                    pwr = np.sum(spec_frame) # alternative power calculation - todo: need to lookup theory
                     rms.append(pwr)
                 km.setData(rms)
                 cluster = km.cluster()
