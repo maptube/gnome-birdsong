@@ -28,6 +28,7 @@ import pickle
 import tensorflow as tf
 
 from spectrogram import Spectrogram
+from kmeans import KMeans1D
 
 
 ###############################################################################
@@ -205,12 +206,12 @@ def main():
     #sess.close()
 
     #test1
-    numK=3 #number of clusters
-    x = tf.constant([1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0], name="x-points")
+    #numK=3 #number of clusters
+    #x = tf.constant([1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0], name="x-points")
     #y=tf.constant([1,1,2,2,3,4,5,5,5,6,6,7,7,7,7,7,8,9,10],name="points2")
     #dx = tf.expand_dims(x)
-    c = tf.placeholder(tf.float32, name="c-centroids")
-    c_new = tf.placeholder(tf.float32, name="new-centroids")
+    #c = tf.placeholder(tf.float32, name="c-centroids")
+    #c_new = tf.placeholder(tf.float32, name="new-centroids")
     #W = tf.Variable([0.3],tf.float32)
     #b = tf.Variable([-0.3],tf.float32)
     #x = tf.placeholder(tf.float32)
@@ -220,36 +221,44 @@ def main():
     #loss = tf.reduce_sum(squared_deltas)
     #
     #deltas = tf.squared_difference(x,tf.transpose(c))
-    expanded_vectors = tf.expand_dims(x, 0)
+    #expanded_vectors = tf.expand_dims(x, 0)
     #debug_expanded_vectors = tf.Print(expanded_vectors,[tf.shape(expanded_vectors)],summarize=100,message="This is me: ")
-    expanded_centroids = tf.expand_dims(c, 1)
+    #expanded_centroids = tf.expand_dims(c, 1)
     #debug_expanded_centroids = tf.Print(expanded_centroids,[tf.shape(expanded_centroids)],summarize=100,message="This is me: ")
-    deltas = tf.subtract(expanded_vectors, expanded_centroids)
+    #deltas = tf.subtract(expanded_vectors, expanded_centroids)
     # debug_deltas = tf.Print(deltas,[tf.shape(deltas)],summarize=100,message="debug_deltas: ")
-    distances = tf.square(deltas)
-    nearest_indices = tf.argmin(distances, 0)
+    #distances = tf.square(deltas)
+    #nearest_indices = tf.argmin(distances, 0)
     # debug_mins = tf.Print(mins,[tf.shape(mins)],summarize=100,message="debug_mins: ")
     ##
-    inearest_indices = tf.to_int32(nearest_indices)
-    partitions = tf.dynamic_partition(x, inearest_indices, numK)
+    #inearest_indices = tf.to_int32(nearest_indices)
+    #partitions = tf.dynamic_partition(x, inearest_indices, numK)
     # new_centroids = tf.concat([tf.expand_dims(tf.reduce_mean(partition,0),0) for partition in partitions],0)
-    compute_new_centroids = tf.reshape([tf.reduce_mean(partition, 0) for partition in partitions], (3,))
+    #compute_new_centroids = tf.reshape([tf.reduce_mean(partition, 0) for partition in partitions], (3,))
     ##
-    compute_change = tf.reduce_mean(tf.square(tf.subtract(c, c_new)))
+    #compute_change = tf.reduce_mean(tf.square(tf.subtract(c, c_new)))
     #
-    centroids = [2,4,7]
-    init = tf.global_variables_initializer()
-    with tf.Session() as session:
-        writer = tf.summary.FileWriter("output", session.graph)
-        session.run(init)
-        delta = sys.float_info.max
-        while delta > 0.01:
-            result_1 = session.run(compute_new_centroids, {c: centroids})
-            # result_1 contains the new centroids, we now need to compare the difference to see if the clusters are stable
-            delta = session.run(compute_change, {c: centroids, c_new: result_1})
-            centroids = result_1
-            print("delta:", delta, " c:", centroids)
-        writer.close()
+    #centroids = [2,4,7]
+    #init = tf.global_variables_initializer()
+    #with tf.Session() as session:
+    #    writer = tf.summary.FileWriter("output", session.graph)
+    #    session.run(init)
+    #    delta = sys.float_info.max
+    #    while delta > 0.01:
+    #        result_1 = session.run(compute_new_centroids, {c: centroids})
+    #        # result_1 contains the new centroids, we now need to compare the difference to see if the clusters are stable
+    #        delta = session.run(compute_change, {c: centroids, c_new: result_1})
+    #        centroids = result_1
+    #        print("delta:", delta, " c:", centroids)
+    #    writer.close()
+
+    #kmeans class test
+    km = KMeans1D()
+    km._numK = 3
+    km.setData([1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0])
+    km.cluster()
+
+
 
     # some testing
     # need RNN cell
