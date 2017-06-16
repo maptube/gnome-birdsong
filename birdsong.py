@@ -53,7 +53,7 @@ def calcRMS(x):
 
 ###############################################################################
 
-def buildXCTrainingVectors(inDirData,outDirSpectrogram,outDirTrainingVectors):
+def buildXCSpectrograms(inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors):
     #go through the training manifest and generate spectrograms for all the files
     #id	gen	sp	en	rec	cnt	lat	lng	type	lic
     #132608	Acanthis	flammea	Common Redpoll	Jarek Matusiak	Poland	50.7932	15.4995	female, male, song	http://creativecommons.org/licenses/by-nc-sa/3.0/
@@ -120,14 +120,23 @@ def buildXCTrainingVectors(inDirData,outDirSpectrogram,outDirTrainingVectors):
 
 ###############################################################################
 
-def loadXCTrainingVectors(dirTrainingVectors):
-    #todo:
-    #filenames are 0_xc41428_[dbfs|mag|freq].pkl
-    #The zero is the species classification
-    #The xc... is the xeno canto identifier
-    #dbfs is a bd relative full scale spectrogram, while mag is the magnitude (linear)
-    #freq is the list of frequencies in the spectrogram
-    #returns some sort of structure containing spectrogram segments and target species
+def buildXCTrainingVectors(frameWidth,frameOverlap,dirTrainingVectors,outTrainingVectorsFilename):
+    """
+    Takes the dumps of the spectrogram files for each sample and turns them into a set of training vectors
+    :param frameWidth: each training frame is "frameWidth" (~=10?) samples (~20ms*10)
+    :param frameOverlap: overlap by this many samples (~=5? which would be 50% overlap)
+    :param dirTrainingVectors: input directory containing the xeno canto files (spectrograms) to process. This is the
+    output from buildXCSpectrograms.
+    :return:
+    """
+    # filenames are 0_xc41428_[dbfs|mag|freq].pkl
+    # The zero is the species classification
+    # The xc... is the xeno canto identifier
+    # dbfs is a bd relative full scale spectrogram, while mag is the magnitude (linear)
+    # freq is the list of frequencies in the spectrogram
+
+    outCSV = open(outTrainingVectorsFilename,"w")
+
     km = KMeans1D()
     km._numK = 3
     for filename in os.listdir(dirTrainingVectors):
@@ -136,13 +145,12 @@ def loadXCTrainingVectors(dirTrainingVectors):
         xcid = fields[1]
         obtype = fields[2] # remember that this contains the suffix
         #print("filename: ", filename, target, xcid, obtype)
-        if obtype=='mag.pkl':
-            #print("Training vector file: ",filename)
+        if obtype=='dbfs.pkl':
+            print("Training vector file: ",filename)
             #print("full name: ",os.path.join(dirTrainingVectors,filename))
             with open(os.path.join(dirTrainingVectors,filename),"rb") as f:
                 #NOTE: the latin1 encoding is due to using Python 2 to save the data and Python 3 to load it
                 spec = pickle.load(f,encoding="latin1") #it's a list of spectrogram frames
-                #todo: now we need to create vectors from the data in the spectrogram
                 #do a 3 way rms cluster
                 rms = []
                 for spec_frame in spec:
@@ -154,12 +162,27 @@ def loadXCTrainingVectors(dirTrainingVectors):
                 km.setData(rms)
                 cluster = km.cluster()
                 #now go back and see how many of the frames are over the noise threshold we just calculated
-                noiseThreshold=(cluster[2]+cluster[1])/2.0
-                count=0
+                noiseThreshold = (cluster[0]+cluster[1])/2.0
+                count = 0
                 for p in rms:
                     if p>noiseThreshold:
                         count = count+1
                 print(filename," power cluster: ",cluster," data frames: ",count,len(rms))
+                #now make some data, each vector is (257 fft)*frameWidth wide, plus the target of course
+                i = 0
+                while i+frameWidth<len(spec):
+                    if rms[i]>noiseThreshold:
+                        csv = target+","+xcid+","+str(i)
+                        for i2 in range(i,i+frameWidth):
+                            spec_frame = spec[i2]
+                            for pwr in spec_frame:
+                                csv = csv + "," + str(pwr)
+                        #print(csv)
+                        outCSV.write(csv+"\n")
+                    i = i + frameWidth - frameOverlap
+        outCSV.flush()
+    outCSV.close()
+
     return ""
 
 ###############################################################################
@@ -184,38 +207,43 @@ def loadSpeciesClassification():
 ###############################################################################
 
 def main():
-    #define constants which determine how the learning works
-    #assume sample rate of 44100
-    sampleRate = 44100 #this should come from the sample itself really
-    windowSeconds = 20.0/1000.0 #window time in seconds
-    windowSamples = int(floor(windowSeconds*sampleRate)) #number of samples in a window
-    windowOverlap = 0.5 #degree of overlap between sample windows 0.5 means 50% overlap
-    windowSampleOverlap = int(floor(windowOverlap*windowSamples)) #how many samples the overlap contains
-    fftSize = 512 #number of frequency bins in the ftt spectrogram
-    #numMelBands = 16 #number of mel frequency bands for the mel spectrogram
-    #todo: you might want to print this lot out at the start of each run?
+    # define constants which determine how the learning works
+    # assume sample rate of 44100
+    sampleRate = 44100  # this should come from the sample itself really
+    windowSeconds = 20.0/1000.0  # window time in seconds
+    windowSamples = int(floor(windowSeconds*sampleRate))  # number of samples in a window
+    windowOverlap = 0.5  # degree of overlap between sample windows 0.5 means 50% overlap
+    windowSampleOverlap = int(floor(windowOverlap*windowSamples))  # how many samples the overlap contains
+    fftSize = 512  # number of frequency bins in the ftt spectrogram
+    # numMelBands = 16 #number of mel frequency bands for the mel spectrogram
+    specFrameWidth = 10  # number of spectrogram frames to batch into a training vector
+    specFrameOverlap = 5  # overlap in spectrogram frames for training vector batch =specFrameWidth/2 is 50% overlap
+    # todo: you might want to print this lot out at the start of each run?
     print("sampleRate=",sampleRate)
     print("windowSeconds=",windowSeconds)
     print("windowSamples=",windowSamples)
     print("windowOverlap=",windowOverlap)
     print("windowSampleOverlap=",windowSampleOverlap)
     print("fftSize=",fftSize)
-    #print "numMelBands=",numMelBands
+    # print "numMelBands=",numMelBands
+    print("specFrameWidth=",specFrameWidth)
+    print("specFrameOverlap=",specFrameOverlap)
     ###
 
-    #housekeeping - where everything is and where it goes
-    inFileTrainManifest = "training-data/xccoverbl/xcmeta.csv" #manifest file for all training data sound files
-    inDirData = "training-data/xccoverbl/xccoverbl_2014_269" #location of the wave files
-    outDirSpectrogram = "spectrograms" #where spectrogram plots can get put so they're all together - basically debug/testing
-    outDirTrainingVectors = "training-vectors" #location where data for training is stored
+    # housekeeping - where everything is and where it goes
+    inFileTrainManifest = "training-data/xccoverbl/xcmeta.csv"  # manifest file for all training data sound files
+    inDirData = "training-data/xccoverbl/xccoverbl_2014_269"  # location of the wave files
+    outDirSpectrogram = "spectrograms"  # where spectrogram plots can get put so they're all together - basically debug/testing
+    outDirTrainingVectors = "training-vectors"  # location where data for training is stored
+    trainingVectorsFilename = os.path.join(outDirTrainingVectors, "vectors.csv")
 
 
     ###
 
-    #build the training vectors from the Xeno Canto dataset into files that we can load easily
-    #buildXCTrainingVectors(inDirData,outDirSpectrogram,outDirTrainingVectors)
-
-    trainingset = loadXCTrainingVectors(outDirTrainingVectors)
+    # build the training vectors from the Xeno Canto dataset into files that we can load easily
+    # buildXCSpectrograms(inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors)
+    # then build a csv file of the spectrograms cut into frame sized pieces and labelled with the target
+    buildXCTrainingVectors(specFrameWidth, specFrameOverlap, outDirTrainingVectors, trainingVectorsFilename)
 
     #learning algorithm...
     #hello = tf.constant('Hello, TensorFlow!')
