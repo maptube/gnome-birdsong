@@ -98,8 +98,8 @@ class Spectrogram:
         freq = np.arange((self.fftSize / 2) + 1) / (float(self.fftSize) / self.sampleRate) #need frequency bins for plotting
         #find the magnitude of the complex numbers in spec
         spec_mag = np.abs(spec)*2/np.sum(wdw) #magnitude scaling by window: np.abs(s) is amplitude spectrum, np.abs(s)**2 is power
-        spec_dbfs = 20 * np.log10(spec_mag/ref) #conversion to db rel full scale
-        #print "max,min=",np.max(spec_dbfs),np.min(spec_dbfs),np.max(spec_mag),np.min(spec_mag),xrms,np.sum(wdw)
+        spec_dbfs = 20 * np.log10(spec_mag/ref+0.0001) #conversion to db rel full scale
+        #print("max,min=",np.max(spec_dbfs),np.min(spec_dbfs),np.max(spec_mag),np.min(spec_mag))
 
         #print "len spec_dbfs=",len(spec_dbfs)
         return freq, spec_dbfs, spec_mag
@@ -111,8 +111,12 @@ class Spectrogram:
         Normalise spectrogram power for each frequency band by subtracting the median from each band in turn.
         Any values below zero are set to zero.
         """
+
+        # THIS LINE IS VERY IMPORTANT otherwise you end up copying the spec array that's passed in and destroying it!
+        new_spec = np.copy(spec)
+
         #x-axis is a list of the fft window (y-axis), we need min and max along x, which is along the frames
-        xs, ys = np.shape(spec)
+        xs, ys = np.shape(new_spec)
         #minmax = []
         #smin1=[]
         #for y in range(0,ys):
@@ -126,18 +130,19 @@ class Spectrogram:
         #smin2=np.amin(spec,axis=0)
         #print "smin2=",smin2
 
+
         #min and max across frames (x-axis)
         #smin = np.amin(spec,axis=0)
         #smax = np.amax(spec,axis=0)
-        smedian = np.median(spec,axis=0)
+        smedian = np.median(new_spec,axis=0)
         #now take the median value away from the data across each frequency band
         for y in range(0,ys):
             for x in range(0,xs):
-                spec[x][y]=spec[x][y]-smedian[y]
-                if (spec[x][y]<0):
-                    spec[x][y]=0
+                new_spec[x][y]=new_spec[x][y]-smedian[y]
+                if (new_spec[x][y]<0):
+                    new_spec[x][y]=0
     
-        return spec
+        return new_spec
     
 ################################################################################
 
@@ -297,7 +302,7 @@ class Spectrogram:
         plt.ylim([0, y])
         plt.yticks(
             [0,y/4,y/2,3*y/4,y],
-            [freq[0]/1000.0,freq[y/4]/1000.0,freq[y/2]/1000.0,freq[3*y/4]/1000.0,freq[y-1]/1000.0]
+            [freq[0]/1000.0,freq[int(y/4)]/1000.0,freq[int(y/2)]/1000.0,freq[int(3*y/4)]/1000.0,freq[int(y-1)]/1000.0]
         )
         #plt.yticks(np.arange(0,y,y/4),np.arange(freq[0]/1000.0,freq[y-1]/1000.0,(freq[y-1]-freq[0])/(4*1000)))
         plt.tight_layout() #it cuts the y label off otherwise

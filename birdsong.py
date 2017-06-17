@@ -53,17 +53,30 @@ def calcRMS(x):
 
 ###############################################################################
 
-def buildXCSpectrograms(inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors):
-    #go through the training manifest and generate spectrograms for all the files
-    #id	gen	sp	en	rec	cnt	lat	lng	type	lic
-    #132608	Acanthis	flammea	Common Redpoll	Jarek Matusiak	Poland	50.7932	15.4995	female, male, song	http://creativecommons.org/licenses/by-nc-sa/3.0/
-    #Results in [ id="132608", gen="Acanthis", sp="flammea", en="Common Redpoll", rec="Jarek Matusiak",
+def buildAllTrainingVectors(\
+        inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors,\
+        outTrainingVectorsFilename,frameWidth,frameOverlap\
+):
+    """
+    Build spectrogram files and training vectors for every training file in the manifest
+    :param inFileTrainManifest: file containing the list of seno canto flac files with species data (tab separated)
+    :param inDirData: directory containing the original xeno canto flac files
+    :param outDirSpectrogram: directory where the spectrogram images will be stored
+    :param outDirTrainingVectors: directory where the intermediate training vectors are stored (pkl spectrogram files)
+    :param outTrainingVectorsFilename: csv file which holds the final training vectors
+    :param frameWidth: number of spectrogram frames to bundle into a single training vector i.e. time slice to match
+    :param frameOverlap: number of samples to overlap spectrogram frames (probably =frameWidth/2 for 50% overlap)
+    :return:
+    """
+    birdNameToId = loadSpeciesClassification()
+
+    # go through the training manifest and generate spectrograms for all the files
+    # id	gen	sp	en	rec	cnt	lat	lng	type	lic
+    # 132608	Acanthis	flammea	Common Redpoll	Jarek Matusiak	Poland	50.7932	15.4995	female, male, song	http://creativecommons.org/licenses/by-nc-sa/3.0/
+    # Results in [ id="132608", gen="Acanthis", sp="flammea", en="Common Redpoll", rec="Jarek Matusiak",
     #                   cnt="Poland", lat="50.7932", lng="15.4995", type="female, male, song",
     #                   lic="http://creativecommons.org/licenses/by-nc-sa/3.0/" ]
-
-    birdNameToId = loadSpeciesClassification()
-    
-    genSpec = Spectrogram()
+    outCSV = open(outTrainingVectorsFilename, "w")
     with open(inFileTrainManifest) as f:
         next(f) #skip header line
         count=0
@@ -75,115 +88,143 @@ def buildXCSpectrograms(inFileTrainManifest,inDirData,outDirSpectrogram,outDirTr
             filename = os.path.join(inDirData,'xc'+fileid+'.flac')
             print(count," ",commonName," ",speciesid," ",filename)
             sys.stdout.flush() #otherwise it very annoyingly doesn't write anything until after the loop is finished!
-            #pick up audio file, make the spectrogram from it and save spec, plus serialise the data for training
-            genSpec.load(filename)
-            #spectrogram computation on entire waveform file
-            spectrogramDBFS = genSpec.spectrogramDBFS #this is the db relative full scale power spectra
-            spectrogramMag = genSpec.spectrogramMag #and this is the raw linear power spectra
-            freq=genSpec.freq #these are the frequency bands that go with the above
-            #now plot the data and save the training frames
-            print("spectrogram feature frames: ",len(spectrogramDBFS))
-            print("spectrogram=",np.shape(spectrogramDBFS))
-            #At this point we have a number of possibilities. There is the spectrumDBFS, which is the DB relative
-            #full scale log magnitude power spectrum, or the raw linear magnitude power spectrum which is just from
-            #the raw fft data directly (magnitude of the im, re vector). Either of these can be median filtered
-            #and then converted to a mel scale.
-            genSpec.plotSpectrogram(spectrogramDBFS,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_dbfs.png'))
-            genSpec.plotSpectrogram(spectrogramMag,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mag.png'))
-            spectrogramDBFS_Filt = genSpec.spectrogramMedianFilter(spectrogramDBFS)
-            spectrogramMag_Filt = genSpec.spectrogramMedianFilter(spectrogramMag)
-            genSpec.plotSpectrogram(spectrogramDBFS_Filt,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_dbfs_med.png'))
-            genSpec.plotSpectrogram(spectrogramMag_Filt,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mag_med.png'))
-            #now you can do a mel frequency one off of either spectrogram[Mag|DBFS] or spectrogram[Mag|DBFS]_Filt (median filtered)
-            #melfreq, spectrogramMels = genSpec.melSpectrum(spectrogramMag_Filt,freq)
-            #print "mels=",np.shape(spectrogramMels)
-            #genSpec.plotSpectrogram(spectrogramMels,melfreq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mel_mag_med.png'))
-            #spectrogramMelsLog = genSpec.logSpectrogram(spectrogramMels) #this applies a log function to the magnitudes
-            #genSpec.plotSpectrogram(spectrogramMelsLog,melfreq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mel_log_mag_med.png'))
-            #and rms normalisation
-            #and silence removal
-            #TODO: need to serialise the data from the spectrogram here so we can learn from it
-            
-            #Save vector data needed for learning
-            #TODO: NEED the training class in the filename here
-            output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_dbfs.pkl'), 'wb')
-            pickle.dump(spectrogramDBFS, output)
-            output.close()
-            output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_mag.pkl'), 'wb')
-            pickle.dump(spectrogramMag, output)
-            output.close()
-            output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_freq.pkl'), 'wb')
-            pickle.dump(freq, output)
-            output.close()
-            
+            spectrogramDBFS, spectrogramMag, freq = \
+            buildXCSpectrogram(filename,fileid,speciesid,outDirSpectrogram,outDirTrainingVectors)
+            #then the vectors
+            c1, c2 = writeXCTrainingVectors(frameWidth,frameOverlap,spectrogramDBFS,speciesid,fileid,outCSV)
+            # c1=num spectrograms greater than noise, c2=num lines written to csv
+
             count=count+1
+
+    outCSV.close()
+
 
 ###############################################################################
 
-def buildXCTrainingVectors(frameWidth,frameOverlap,dirTrainingVectors,outTrainingVectorsFilename):
+
+def buildXCSpectrogram(filename,fileid,speciesid,outDirSpectrogram,outDirTrainingVectors):
     """
-    Takes the dumps of the spectrogram files for each sample and turns them into a set of training vectors
+    Build spectrogram data for given file
+    :param filename:
+    :param fileid
+    :param speciesid:
+    :param outDirSpectrogram:
+    :param outDirTrainingVectors:
+    :return:
+    """
+    
+    genSpec = Spectrogram()
+    #pick up audio file, make the spectrogram from it and save spec, plus serialise the data for training
+    genSpec.load(filename)
+    #spectrogram computation on entire waveform file
+    spectrogramDBFS = genSpec.spectrogramDBFS #this is the db relative full scale power spectra
+    spectrogramMag = genSpec.spectrogramMag #and this is the raw linear power spectra
+    freq=genSpec.freq #these are the frequency bands that go with the above
+    print("spec check 1: ",np.min(spectrogramDBFS[0]),np.max(spectrogramDBFS[0]))
+    #now plot the data and save the training frames
+    print("spectrogram feature frames: ",len(spectrogramDBFS))
+    print("spectrogram=",np.shape(spectrogramDBFS))
+    #At this point we have a number of possibilities. There is the spectrumDBFS, which is the DB relative
+    #full scale log magnitude power spectrum, or the raw linear magnitude power spectrum which is just from
+    #the raw fft data directly (magnitude of the im, re vector). Either of these can be median filtered
+    #and then converted to a mel scale.
+    genSpec.plotSpectrogram(spectrogramDBFS,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_dbfs.png'))
+    genSpec.plotSpectrogram(spectrogramMag,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mag.png'))
+    spectrogramDBFS_Filt = genSpec.spectrogramMedianFilter(spectrogramDBFS)
+    spectrogramMag_Filt = genSpec.spectrogramMedianFilter(spectrogramMag)
+    genSpec.plotSpectrogram(spectrogramDBFS_Filt,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_dbfs_med.png'))
+    genSpec.plotSpectrogram(spectrogramMag_Filt,freq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mag_med.png'))
+    #now you can do a mel frequency one off of either spectrogram[Mag|DBFS] or spectrogram[Mag|DBFS]_Filt (median filtered)
+    #melfreq, spectrogramMels = genSpec.melSpectrum(spectrogramMag_Filt,freq)
+    #print "mels=",np.shape(spectrogramMels)
+    #genSpec.plotSpectrogram(spectrogramMels,melfreq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mel_mag_med.png'))
+    #spectrogramMelsLog = genSpec.logSpectrogram(spectrogramMels) #this applies a log function to the magnitudes
+    #genSpec.plotSpectrogram(spectrogramMelsLog,melfreq,os.path.join(outDirSpectrogram,'xc'+fileid+'_spec_mel_log_mag_med.png'))
+    #and rms normalisation
+    #and silence removal
+
+    #serialise the data from the spectrogram here so we can go back to it quickly later if needed
+            
+    #Save vector data needed for learning
+    output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_dbfs.pkl'), 'wb')
+    pickle.dump(spectrogramDBFS, output)
+    output.close()
+    output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_mag.pkl'), 'wb')
+    pickle.dump(spectrogramMag, output)
+    output.close()
+    output = open(os.path.join(outDirTrainingVectors,speciesid+'_xc'+fileid+'_freq.pkl'), 'wb')
+    pickle.dump(freq, output)
+    output.close()
+
+    print("spec check 2: ", np.min(spectrogramDBFS[0]), np.max(spectrogramDBFS[0]))
+
+    return spectrogramDBFS, spectrogramMag, freq
+
+###############################################################################
+
+def writeXCTrainingVectors(frameWidth,frameOverlap,spectrogram,target,xcid,outCSV):
+    """
+    Takes the dumps of the spectrogram files for each sample and turns them into a set of training vectors by
+    writing the output to a csv file.
+    Pattern is to go through all spectrogram frames and calculate a power value. Then go through the frames again
+    and only generate vectors for frames that start with a non-silence frame (from the power). This method could be
+    improved upon. Multiple CSV lines are written out for each spectrogram, comprising blocks of frames (frameWidth)
+    overlapping by (frameOverlap) sample with high enough power. Output is to outCSV.
     :param frameWidth: each training frame is "frameWidth" (~=10?) samples (~20ms*10)
     :param frameOverlap: overlap by this many samples (~=5? which would be 50% overlap)
-    :param dirTrainingVectors: input directory containing the xeno canto files (spectrograms) to process. This is the
-    output from buildXCSpectrograms.
-    :return:
+    :param spectogram:
+    :param target: target value for the vector i.e. the bird species number relating to this spectrogram
+    :param: xcid: xenocanto identifier (string)
+    :param outCSV: the file handle to write the training vector output to as csv lines
+    :return: number of frames over the power threshold and number of target vector blocks written to outCSV
     """
     # filenames are 0_xc41428_[dbfs|mag|freq].pkl
     # The zero is the species classification
     # The xc... is the xeno canto identifier
     # dbfs is a bd relative full scale spectrogram, while mag is the magnitude (linear)
     # freq is the list of frequencies in the spectrogram
-
-    outCSV = open(outTrainingVectorsFilename,"w")
+    # NOTE the switching around of the power threshold check for dbfs compared to the linear mag scale. It might be
+    # better to simply add 120dB to the dbfs one to get it the right way around?
 
     km = KMeans1D()
     km._numK = 3
-    for filename in os.listdir(dirTrainingVectors):
-        fields = filename.split('_')
-        target = fields[0]
-        xcid = fields[1]
-        obtype = fields[2] # remember that this contains the suffix
-        #print("filename: ", filename, target, xcid, obtype)
-        if obtype=='dbfs.pkl':
-            print("Training vector file: ",filename)
-            #print("full name: ",os.path.join(dirTrainingVectors,filename))
-            with open(os.path.join(dirTrainingVectors,filename),"rb") as f:
-                #NOTE: the latin1 encoding is due to using Python 2 to save the data and Python 3 to load it
-                spec = pickle.load(f,encoding="latin1") #it's a list of spectrogram frames
-                #do a 3 way rms cluster
-                rms = []
-                for spec_frame in spec:
-                    #calculate power for the spectral frame TODO: what about negative dbs?
-                    #pwr = sqrt(np.mean(np.square(spec_frame)))
-                    #pwr2 = calcRMS(spec_frame) # you can use this function too: pwr==pwr2
-                    pwr = np.sum(spec_frame) # alternative power calculation - todo: need to lookup theory
-                    rms.append(pwr)
-                km.setData(rms)
-                cluster = km.cluster()
-                #now go back and see how many of the frames are over the noise threshold we just calculated
-                noiseThreshold = (cluster[0]+cluster[1])/2.0
-                count = 0
-                for p in rms:
-                    if p>noiseThreshold:
-                        count = count+1
-                print(filename," power cluster: ",cluster," data frames: ",count,len(rms))
-                #now make some data, each vector is (257 fft)*frameWidth wide, plus the target of course
-                i = 0
-                while i+frameWidth<len(spec):
-                    if rms[i]>noiseThreshold:
-                        csv = target+","+xcid+","+str(i)
-                        for i2 in range(i,i+frameWidth):
-                            spec_frame = spec[i2]
-                            for pwr in spec_frame:
-                                csv = csv + "," + str(pwr)
-                        #print(csv)
-                        outCSV.write(csv+"\n")
-                    i = i + frameWidth - frameOverlap
-        outCSV.flush()
-    outCSV.close()
-
-    return ""
+    #do a 3 way rms cluster
+    rms = []
+    for spec_frame in spectrogram:
+        #calculate power for the spectral frame TODO: what about negative dbs?
+        #pwr = sqrt(np.mean(np.square(spec_frame)))
+        #pwr2 = calcRMS(spec_frame) # you can use this function too: pwr==pwr2
+        #print(np.min(spec_frame),np.max(spec_frame))
+        pwr = np.sum(spec_frame) # alternative power calculation - todo: need to lookup theory
+        rms.append(pwr)
+    km.setData(rms)
+    cluster = km.cluster()
+    #now go back and see how many of the frames are over the noise threshold we just calculated
+    #NOTE: if using dbfs, the raw values will have had 120dB added to them so that the higher ones have
+    #more power where dbfs would normally have its max at zero and everything negative which would mean
+    #a reversed threshold test
+    noiseThreshold = (cluster[0]+cluster[1])/2.0
+    count = 0
+    for p in rms:
+        if p>noiseThreshold:
+            count = count+1
+            #print(filename," power cluster: ",cluster," data frames: ",count,len(rms))
+    #now make some data, each vector is (257 fft)*frameWidth wide, plus the target of course
+    count2=0
+    i = 0
+    while i+frameWidth<len(spectrogram):
+        if rms[i]>noiseThreshold:
+            csv = target+","+xcid+","+str(i)
+            for i2 in range(i,i+frameWidth):
+                spec_frame = spectrogram[i2]
+                for pwr in spec_frame:
+                    csv = csv + "," + str(pwr)
+            #print(csv)
+            outCSV.write(csv+"\n")
+            count2=count2+1
+        i = i + frameWidth - frameOverlap
+    outCSV.flush()
+    return count, count2
 
 ###############################################################################
 
@@ -241,9 +282,13 @@ def main():
     ###
 
     # build the training vectors from the Xeno Canto dataset into files that we can load easily
-    # buildXCSpectrograms(inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors)
+    #buildXCSpectrograms(inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors)
     # then build a csv file of the spectrograms cut into frame sized pieces and labelled with the target
-    buildXCTrainingVectors(specFrameWidth, specFrameOverlap, outDirTrainingVectors, trainingVectorsFilename)
+    #buildXCTrainingVectors(specFrameWidth, specFrameOverlap, outDirTrainingVectors, trainingVectorsFilename)
+    buildAllTrainingVectors(\
+        inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors,\
+        trainingVectorsFilename,specFrameWidth,specFrameOverlap\
+    )
 
     #learning algorithm...
     #hello = tf.constant('Hello, TensorFlow!')
