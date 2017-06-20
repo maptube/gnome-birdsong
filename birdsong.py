@@ -228,6 +228,21 @@ def writeXCTrainingVectors(frameWidth,frameOverlap,spectrogram,target,xcid,outCS
 
 ###############################################################################
 
+def loadPickleTrainingVectors(filename,target):
+    """
+    TODO:
+    Load spectrogram data from the pickle file for training
+    :param filename:
+    :return:
+    """
+    spec = pickle.load(open(filename, "rb"))
+    #todo: here you need the bit from writexctrainingvectors to do the frames and noise level checks
+    #then build the data into a training structure and return it
+    return spec
+
+
+###############################################################################
+
 def loadSpeciesClassification():
     """
     Read the 'birdspecies.csv' file (hardcoded - BAD!!!) which contains the lookup
@@ -285,10 +300,10 @@ def main():
     #buildXCSpectrograms(inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors)
     # then build a csv file of the spectrograms cut into frame sized pieces and labelled with the target
     #buildXCTrainingVectors(specFrameWidth, specFrameOverlap, outDirTrainingVectors, trainingVectorsFilename)
-    buildAllTrainingVectors(\
-        inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors,\
-        trainingVectorsFilename,specFrameWidth,specFrameOverlap\
-    )
+    #buildAllTrainingVectors(\
+    #    inFileTrainManifest,inDirData,outDirSpectrogram,outDirTrainingVectors,\
+    #    trainingVectorsFilename,specFrameWidth,specFrameOverlap\
+    #)
 
     #learning algorithm...
     #hello = tf.constant('Hello, TensorFlow!')
@@ -382,6 +397,18 @@ def main():
     #    return x, y
 
     # classifier.fit(input_fn=get_train_inputs, steps=2000)
+
+    #finally, the learning network
+    #as input, 257*10 spectrogram block
+    x = tf.placeholder(tf.float32, shape=[None, 2570]) #input 257*10 "None" means no shape size, which is our batch dimension
+    y_ = tf.placeholder(tf.float32, shape=[None, 88]) #88 bird classes
+    #weights and biases
+    W = tf.Variable(tf.zeros([2570, 88]))
+    b = tf.Variable(tf.zeros([88]))
+
+    conv1 = tf.nn.conv1d(value,filters,stride,padding,use_cudnn_on_gpu=None,data_format=None,name='conv1')
+    pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
+                           padding='SAME', name='pool1')
 
 
 ###############################################################################
