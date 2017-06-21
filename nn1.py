@@ -1,58 +1,111 @@
 #!/usr/bin/env python3
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import numpy as np
 import tensorflow as tf
 
+from tensorflow.contrib import learn
+from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 
-def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev=0.1)
-    return tf.Variable(initial)
+tf.logging.set_verbosity(tf.logging.INFO)
 
-def bias_variable(shape):
-    initial = tf.constant(0.1, shape=shape)
-    return tf.Variable(initial)
+def cnn_model_fn(features, labels, mode):
+    """Model function for CNN."""
+    #based on: https://www.tensorflow.org/tutorials/layers
 
-def conv2d(x, W):
-    #output[b, i, j, k] = sum_{di, dj, q} input[b, strides[1] * i + di, strides[2] * j + dj, q] * filter[di, dj, q, k]
-    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+    #configurable parameters here
+    width = 28
+    height = 28
 
-def max_pool_2x2(x):
-    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+    #  Input Layer - this is [batch,width,height,channels], batch=-1 means take dim from features
+    input_layer = tf.reshape(features, [-1, 28, 28, 1])
 
-def main():
-    x = tf.placeholder(tf.float32, shape=[None, 784])
-    y_ = tf.placeholder(tf.float32, shape=[None, 10])
+    #  Convolutional Layer #1 32 filters, 5x5 kernel, "padding?"
+    conv1 = tf.layers.conv2d(inputs=input_layer,
+            filters=32,
+            kernel_size=[5, 5],
+            padding="same",
+            activation=tf.nn.relu)
 
-#first convolutional layer
-    W_conv1 = weight_variable([5, 5, 1, 32]) #5x5 patch, 1 channel, 32 neurons
-    b_conv1 = bias_variable([32]) #32 neuron biases
+    # Pooling Layer #1 - 2x2 pool, no overlap (stride=2)
+    pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
 
-#reshape x to a 4d tensor [?,width,height,colour channels ]
-    x_image = tf.reshape(x, [-1, 28, 28, 1]) #28x28 image size=784
+    # Convolutional Layer #2 and Pooling Layer #2, 64 filter cnn, 5x5 kernel, 2x2 pool no overlap
+    conv2 = tf.layers.conv2d(
+        inputs=pool1,
+        filters=64,
+        kernel_size=[5, 5],
+        padding="same",
+        activation=tf.nn.relu)
+    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
 
-#convolve x_image, relu and pool 2x2. This reduces image to 14x14
-    h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
-    h_pool1 = max_pool_2x2(h_conv1)
+    # Dense Layer
+    pool2_flat = tf.reshape(pool2, [-1, 7 * 7 * 64])
+    dense = tf.layers.dense(inputs=pool2_flat, units=1024, activation=tf.nn.relu)
+    dropout = tf.layers.dropout(inputs=dense, rate=0.4, training=mode == learn.ModeKeys.TRAIN)
 
-#second convolution layer, 64 features for each 5x5 patch
-    W_conv2 = weight_variable([5, 5, 32, 64])
-    b_conv2 = bias_variable([64])
+    # Logits Layer
+    logits = tf.layers.dense(inputs=dropout, units=10)
 
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
-    h_pool2 = max_pool_2x2(h_conv2)
+    loss = None
+    train_op = None
 
-#densely connected layer, image now reduced to 7x7
-    W_fc1 = weight_variable([7 * 7 * 64, 1024])
-    b_fc1 = bias_variable([1024])
+    # Calculate Loss (for both TRAIN and EVAL modes)
+    if mode != learn.ModeKeys.INFER:
+        onehot_labels = tf.one_hot(indices=tf.cast(labels, tf.int32), depth=10)
+        loss = tf.losses.softmax_cross_entropy(onehot_labels=onehot_labels, logits=logits)
 
-    h_pool2_flat = tf.reshape(h_pool2, [-1, 7 * 7 * 64])
-    h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+    # Configure the Training Op (for TRAIN mode)
+    if mode == learn.ModeKeys.TRAIN:
+        train_op = tf.contrib.layers.optimize_loss(
+            loss=loss,
+            global_step=tf.contrib.framework.get_global_step(),
+            learning_rate=0.001,
+            optimizer="SGD")
 
-    keep_prob = tf.placeholder(tf.float32)
-    h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+    # Generate Predictions
+    predictions = {
+        "classes": tf.argmax(input=logits, axis=1),
+        "probabilities": tf.nn.softmax(logits, name="softmax_tensor")
+    }
 
-    W_fc2 = weight_variable([1024, 10]) # 10 output neuron digits
-    b_fc2 = bias_variable([10])
+    # Return a ModelFnOps object
+    return model_fn_lib.ModelFnOps(mode=mode, predictions=predictions, loss=loss, train_op=train_op)
 
-    y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+def run():
+    # Load training and eval data
+    mnist = learn.datasets.load_dataset("mnist")
+    train_data = mnist.train.images  # Returns np.array
+    train_labels = np.asarray(mnist.train.labels, dtype=np.int32)
+    eval_data = mnist.test.images  # Returns np.array
+    eval_labels = np.asarray(mnist.test.labels, dtype=np.int32)
+
+    #setup estimator
+    mnist_classifier = learn.Estimator(model_fn=cnn_model_fn, model_dir="/tmp/mnist_convnet_model")
+    # Set up logging for predictions
+    tensors_to_log = {"probabilities": "softmax_tensor"}
+    logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, every_n_iter=50)
+
+    # Train the model
+    mnist_classifier.fit(
+        x=train_data,
+        y=train_labels,
+        batch_size=100,
+        steps=20000,
+        monitors=[logging_hook])
+
+    # Configure the accuracy metric for evaluation
+    metrics = {
+        "accuracy":
+            learn.MetricSpec(
+                metric_fn=tf.metrics.accuracy, prediction_key="classes"),
+    }
+
+    # Evaluate the model and print results
+    eval_results = mnist_classifier.evaluate(
+        x=eval_data, y=eval_labels, metrics=metrics)
+    print(eval_results)
 
