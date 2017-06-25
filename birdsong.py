@@ -29,6 +29,7 @@ import tensorflow as tf
 
 from spectrogram import Spectrogram
 from kmeans import KMeans1D
+from nn1 import runNN1
 
 
 ###############################################################################
@@ -306,109 +307,11 @@ def main():
     #)
 
     #learning algorithm...
-    #hello = tf.constant('Hello, TensorFlow!')
-    #sess = tf.Session()
-    #print(sess.run(hello))
-    #a=tf.constant(10)
-    #b=tf.constant(32)
-    #print(sess.run(a+b))
-    #sess.close()
-
-    #test1
-    #numK=3 #number of clusters
-    #x = tf.constant([1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0], name="x-points")
-    #y=tf.constant([1,1,2,2,3,4,5,5,5,6,6,7,7,7,7,7,8,9,10],name="points2")
-    #dx = tf.expand_dims(x)
-    #c = tf.placeholder(tf.float32, name="c-centroids")
-    #c_new = tf.placeholder(tf.float32, name="new-centroids")
-    #W = tf.Variable([0.3],tf.float32)
-    #b = tf.Variable([-0.3],tf.float32)
-    #x = tf.placeholder(tf.float32)
-    #linear_model = W*x+b
-    #y = tf.placeholder(tf.float32)
-    #squared_deltas = tf.square(linear_model-y)
-    #loss = tf.reduce_sum(squared_deltas)
-    #
-    #deltas = tf.squared_difference(x,tf.transpose(c))
-    #expanded_vectors = tf.expand_dims(x, 0)
-    #debug_expanded_vectors = tf.Print(expanded_vectors,[tf.shape(expanded_vectors)],summarize=100,message="This is me: ")
-    #expanded_centroids = tf.expand_dims(c, 1)
-    #debug_expanded_centroids = tf.Print(expanded_centroids,[tf.shape(expanded_centroids)],summarize=100,message="This is me: ")
-    #deltas = tf.subtract(expanded_vectors, expanded_centroids)
-    # debug_deltas = tf.Print(deltas,[tf.shape(deltas)],summarize=100,message="debug_deltas: ")
-    #distances = tf.square(deltas)
-    #nearest_indices = tf.argmin(distances, 0)
-    # debug_mins = tf.Print(mins,[tf.shape(mins)],summarize=100,message="debug_mins: ")
-    ##
-    #inearest_indices = tf.to_int32(nearest_indices)
-    #partitions = tf.dynamic_partition(x, inearest_indices, numK)
-    # new_centroids = tf.concat([tf.expand_dims(tf.reduce_mean(partition,0),0) for partition in partitions],0)
-    #compute_new_centroids = tf.reshape([tf.reduce_mean(partition, 0) for partition in partitions], (3,))
-    ##
-    #compute_change = tf.reduce_mean(tf.square(tf.subtract(c, c_new)))
-    #
-    #centroids = [2,4,7]
-    #init = tf.global_variables_initializer()
-    #with tf.Session() as session:
-    #    writer = tf.summary.FileWriter("output", session.graph)
-    #    session.run(init)
-    #    delta = sys.float_info.max
-    #    while delta > 0.01:
-    #        result_1 = session.run(compute_new_centroids, {c: centroids})
-    #        # result_1 contains the new centroids, we now need to compare the difference to see if the clusters are stable
-    #        delta = session.run(compute_change, {c: centroids, c_new: result_1})
-    #        centroids = result_1
-    #        print("delta:", delta, " c:", centroids)
-    #    writer.close()
-
-    #kmeans class test
-    #km = KMeans1D()
-    #km._numK = 3
-    #km.setData([1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0])
-    #km.cluster()
-
-
-
-    # some testing
-    # need RNN cell
-    # tf.nn.dynamic_rnn(
-    #    cell,
-    #    inputs,
-    #    sequence_length=None,
-    #    initial_state=None,
-    #    dtype=None,
-    #    parallel_iterations=None,
-    #    swap_memory=False,
-    #    time_major=False,
-    #    scope=None
-    # )
 
     # https://www.tensorflow.org/get_started/tflearn
-    # feature_columns = [tf.contrib.layers.real_valued_column("",dimension=4)]
-    # classifier = tf.contrib.learn.DNNClassifier(
-    #    feature_columns=feature_columns,
-    #    hidden_units=[10,20,10],
-    #    n_classes=3,
-    #    model_dir="tmp-dnnmodel")
-
-    # def get_train_inputs():
-    #    x=tf.constant(training_set.data)
-    #    y=tf.constant(training_set.target)
-    #    return x, y
-
-    # classifier.fit(input_fn=get_train_inputs, steps=2000)
 
     #finally, the learning network
-    #as input, 257*10 spectrogram block
-    x = tf.placeholder(tf.float32, shape=[None, 2570]) #input 257*10 "None" means no shape size, which is our batch dimension
-    y_ = tf.placeholder(tf.float32, shape=[None, 88]) #88 bird classes
-    #weights and biases
-    W = tf.Variable(tf.zeros([2570, 88]))
-    b = tf.Variable(tf.zeros([88]))
-
-    conv1 = tf.nn.conv1d(value,filters,stride,padding,use_cudnn_on_gpu=None,data_format=None,name='conv1')
-    pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
-                           padding='SAME', name='pool1')
+    runNN1()
 
 
 ###############################################################################

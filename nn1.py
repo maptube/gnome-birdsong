@@ -75,7 +75,7 @@ def cnn_model_fn(features, labels, mode):
     # Return a ModelFnOps object
     return model_fn_lib.ModelFnOps(mode=mode, predictions=predictions, loss=loss, train_op=train_op)
 
-def run():
+def runNN1():
     # Load training and eval data
     mnist = learn.datasets.load_dataset("mnist")
     train_data = mnist.train.images  # Returns np.array
